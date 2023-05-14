@@ -3,28 +3,84 @@ import { EventEmitter } from 'events';
 
 import { NestApplication, NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
+import { Logger } from '@nestjs/common';
 
 export class NestBootStrapApplication extends EventEmitter {
   private static INSTANCE: NestBootStrapApplication;
   private static PORT = 3000;
-  private _application: NestApplication = null;
+  private static LOGGER: Logger = new Logger(NestBootStrapApplication.name);
+  private static readonly CORS_WHITELIST = `http://localhost:${this.PORT}`; // Dev 단계 LIST
+  private static readonly PRODUCTION_HOST = ''; // Production 단계 HOST
+  private _application: NestExpressApplication = null;
 
   private constructor() {
     super();
     this.on('ready', () => {
-      this.start();
+      this.prepare().start();
+    });
+    this.on('debug', (message: string) => {
+      NestBootStrapApplication.LOGGER.verbose(message); // 가장 상세 로그 레벨
     });
   }
 
   /**
-   * 서버 시작
+   * NODE_ENV 값에 따른 서버 시작
    */
   private async start() {
-    this._application = await NestFactory.create<NestApplication>(
+    if (this.isDevelopment()) {
+      this.emit('debug', 'Development Server Start');
+    }
+    this._application = await NestFactory.create<NestExpressApplication>(
       AppModule,
       {},
     );
+    this.initMiddleware(this._application);
     await this._application.listen(NestBootStrapApplication.PORT);
+  }
+  /**
+   * 서버 시작 전 Error Handling Logic 추가
+   */
+  public prepare() {
+    process.on('uncaughtException', (err) => {});
+    process.on('unhandledRejection', (err) => {});
+    return this;
+  }
+
+  /**
+   * 허용 Domain 이 아닌 , 다른 Domain 에서 요청이 올 시 , 요청 거부
+   *
+   * @param app
+   */
+  private useCors(app: NestExpressApplication) {
+    const whitelist = this.isDevelopment()
+      ? NestBootStrapApplication.CORS_WHITELIST
+      : [...NestBootStrapApplication.PRODUCTION_HOST];
+    app.enableCors({
+      origin: (origin, callback) => {
+        if (!origin || whitelist.indexOf(origin) !== -1) callback(null, true);
+        else callback(new Error('Not Allowed by CORS'));
+      },
+      credentials: true,
+    });
+  }
+
+  /**
+   * 사용하는 Middleware 들 초기화
+   *
+   * @param app
+   */
+  private initMiddleware(app: NestExpressApplication) {
+    this.useCors(app);
+  }
+
+  /**
+   * NODE_ENV 의 값을 확인후 true/false return
+   *
+   * @returns boolean
+   */
+  private isDevelopment() {
+    if (!process.env.NODE_ENV) return true;
+    return process.env.NODE_ENV === 'development';
   }
 
   /**
