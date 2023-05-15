@@ -4,4 +4,3 @@ async function bootstrap() {
   NestBootStrapApplication.getInstance().emit('ready');
 }
 bootstrap();
-  

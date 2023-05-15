@@ -1,9 +1,11 @@
 import { NestExpressApplication } from '@nestjs/platform-express';
 import { EventEmitter } from 'events';
 
-import { NestApplication, NestFactory } from '@nestjs/core';
+import { NestFactory } from '@nestjs/core';
 import { AppModule } from './app.module';
 import { Logger } from '@nestjs/common';
+import { useHelmet } from './common/middlewares/helmet.middleware';
+import { useGlobalPipes } from './common/middlewares/global-pipes.middleware';
 
 export class NestBootStrapApplication extends EventEmitter {
   private static INSTANCE: NestBootStrapApplication;
@@ -41,8 +43,12 @@ export class NestBootStrapApplication extends EventEmitter {
    * 서버 시작 전 Error Handling Logic 추가
    */
   public prepare() {
-    process.on('uncaughtException', (err) => {});
-    process.on('unhandledRejection', (err) => {});
+    process.on('uncaughtException', (err) => {
+      console.log(err);
+    });
+    process.on('unhandledRejection', (err) => {
+      console.log(err);
+    });
     return this;
   }
 
@@ -70,6 +76,8 @@ export class NestBootStrapApplication extends EventEmitter {
    * @param app
    */
   private initMiddleware(app: NestExpressApplication) {
+    useGlobalPipes(app);
+    useHelmet(app);
     this.useCors(app);
   }
 
